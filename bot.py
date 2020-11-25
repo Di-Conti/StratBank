@@ -5,7 +5,12 @@ import numpy as np
 import datetime
 import time
 
-TOKEN = 'Nzc4NzczMTA4Mzk1MDgxNzI4.X7W2-Q.xIHusryjMTULg3GiTvi9fCmr0C4'
+import os
+from dotenv import load_dotenv
+
+load_dotenv("token.env")
+TOKEN = os.getenv('DISCORD_TOKEN')
+print(TOKEN)
 GUILD = 'Strat'
 #df = pd.read_csv('bank.csv')
 
