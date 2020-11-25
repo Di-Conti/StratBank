@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 load_dotenv("token.env")
 TOKEN = os.getenv('DISCORD_TOKEN')
-print(TOKEN)
+#print(TOKEN)
 GUILD = 'Strat'
 #df = pd.read_csv('bank.csv')
 
@@ -161,7 +161,7 @@ async def createAccount(ctx):
 	if not auteur in df["User"].tolist() :
 		if pariB != True :
 			day = datetime.datetime.now()
-			df2 = pd.DataFrame({"User": [auteur],"Money":[100], "Date" : str(day.date())})
+			df2 = pd.DataFrame({"User": [auteur],"Money":[1000], "Date" : str(day.date())})
 			tot = pd.concat([df, df2], ignore_index=True)
 			tot.to_csv('bank.csv', index=False)
 			await ctx.send("Compte créé")
@@ -192,6 +192,7 @@ async def pari(ctx):
 	embed = discord.Embed(title = "LE PARI COMMENCE", description = "WIN OU LOSE?", colour = discord.Colour(0xE5E242))
 	embed.set_author(name = ctx.author.name, icon_url = ctx.author.avatar_url)
 	graph = await ctx.send(embed = embed)
+	print("ok")
 
 	def check(message):
 		return message.channel == ctx.message.channel and (message.content[0:4] == "win " or message.content[0:5] == "lose ") #Améliorer les checks avec fonctions de message
@@ -201,6 +202,9 @@ async def pari(ctx):
 	while (time.time() - temps) <= 60:
 		try:
 			part = await bot.wait_for('message', timeout = 10, check = check)
+			#await bot.add_reaction(part, "greenCheckmark:558322116685070378")
+			#checkM = bot.get_emoji(558322116685070378)
+			await ctx.send('👍')
 			auteur = str(part.author)
 			Coherence = True
 			if auteur in df["User"].tolist():
@@ -278,6 +282,12 @@ async def pari(ctx):
 	if len(players) == 0:
 		await ctx.send("Aucun pari n'a été enregistré...")
 		return
+
+	elif len(players) == 1:
+		if players[0][0] == str(auteurInit):
+			await ctx.send("ON NE FAIT PAS D'ARNAQUE ICI !!!")
+			return
+
 
 	await ctx.send("FIN DES PARIS : ON ATTEND LE RESULTAT")
 
