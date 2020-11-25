@@ -1,0 +1,2 @@
+# StratBank
+Bot Discord StratBank
