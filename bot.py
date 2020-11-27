@@ -27,34 +27,16 @@ def data_add(data, name, number):
 
 def detect_players(tabs, name):
 	for tab in tabs :
-		print(tab[0])
-		if name == tab[0] :
-			return True
+		#print(tab[0])
+		if name == tab['pseudo'] :
+			print("allo")
+			return tabs.index(tab)
 
-	return False
+	return -1
 
 ##############
-#Faire d'autres fonctions pour raccourcir la fonction pari
+#Fonction give, distribution
 ##############
-
-async def play(ctx,path): #Fonction de Thomas Menchi : https://github.com/Menchit-ai/Discord-bot/blob/master/bot.py
-
-    voice_channel = ctx.author.voice
-    if voice_channel is None: await ctx.send("Vous n'êtes pas dans un channel audio."); return
-    vc = None
-
-
-    if (ctx.me.voice is None): 
-        vc = await ctx.author.voice.channel.connect()
-    elif ctx.author.voice.channel != ctx.me.voice.channel:
-        await ctx.voice_client.disconnect()
-        vc = await ctx.author.voice.channel.connect()
-    else:
-	    print("là")
-	    vc = ctx.voice_client    
-
-    vc.play(discord.FFmpegPCMAudio(path), after=lambda e: print('done', e))
-    vc.is_playing()
 
 @bot.event
 async def on_ready():
@@ -88,32 +70,37 @@ async def membres(ctx):
 	#ids = [member.name for member in server.members]
 	print(str(members))
 
-@bot.command()
+@bot.command(hidden = True)
 async def test(ctx):
-	embed = discord.Embed(title = "C'est un test", description = "oui")
-	embed.add_field(name = "Bot", value = "Machin", inline = True)
-	#await ctx.send(embed = embed)
+	msg = await ctx.send("TEST")
+	await msg.add_reaction('👍')
 
-	#def checker(message):
-		#return (message.content == "test")
+@bot.command(hidden = True)
+async def debug(ctx):
+	global players
+	global pariB
+	players = []
+	pariB = False
 
-	#tester = await bot.wait_for('message', check = checker)
+@bot.command(name='cote', help='Pour voir comment la cote est calculée')
+async def cote(ctx):
+	await ctx.send("Pour les cotes : cote Choix = 100/((Somme Choix / (Somme Win + Somme Lose))*100))")
 
-	#auteur = tester.author
-
-	#print(str(auteur.name))
-
-	embed.add_field(name = "Bot2", value = "Machin2", inline = True)
-	a = embed.to_dict()
-	b = a['fields']
-	c = b[0]
-	d = c['name']
-	print(d)
-
-	embed.to_dict()['fields'][0]['name'] = "AHHHH"
-	await ctx.send(embed = embed)
-
-
+@bot.command(name='give', hidden=True)
+async def giveAccount(ctx, member: discord.Member, *mont):
+	auteur = str(ctx.author)
+	montant = int(mont[0])
+	membre = str(member)
+	df = pd.read_csv('bank.csv')
+	if auteur == "TLG#5803" :
+		if membre in df["User"].tolist():
+			df = data_add(df, membre, montant)
+			df.to_csv('bank.csv', index=False)
+			await ctx.send("Argent distribué")
+		else:
+			await ctx.send("Pas de compte à ce nom !")
+	else:
+		await ctx.send("Vous n'êtes pas banquier !")
 
 @bot.command(name='see', help='Pour voir ton compte')
 async def seeAccount(ctx):
@@ -126,7 +113,6 @@ async def seeAccount(ctx):
 		embed.set_thumbnail(url= ctx.author.avatar_url)
 		embed.add_field(name = "StratCoins :", value = str(argent[0]), inline = True)
 		await ctx.send(embed = embed)
-		#await ctx.send(f'Ton argent : {str(argent[0])}')
 	else:
 		await ctx.send("T'as pas de compte !")
 
@@ -141,13 +127,12 @@ async def claimAccount(ctx):
 			filtre = df[df["User"] == auteur]
 			past = filtre["Date"].tolist()
 			if past[0] != str(day.date()) :
-				df.loc[df['User'] == auteur, ['Money']] = df.loc[df['User'] == auteur, ['Money']] + 500
+				df = data_add(df, auteur, 500)
 				df.loc[df['User'] == auteur, ['Date']] = str(day.date())
 				df.to_csv('bank.csv', index=False)
 				await ctx.send("Tu as gagné 500 StratCoins")
 			else :
 				await ctx.send("T'as déjà eu assez d'argent pour aujourd'hui...")
-		#await ctx.send(f'Ton argent : {str(argent[0])}')
 		else :
 			await ctx.send("Attendez la fin du pari pour demander de l'argent")
 	else:
@@ -170,7 +155,7 @@ async def createAccount(ctx):
 	else :
 		await ctx.send("Vous existez déjà !")
 
-@bot.command(name='pari', help='Pour parier quelques pièces') #pass_context?
+@bot.command(name='pari', help='Pour parier quelques pièces')
 async def pari(ctx):
 	global players
 	global pariB
@@ -187,12 +172,9 @@ async def pari(ctx):
 
 	pariB = True
 
-	#await ctx.send("LE PARI COMMENCE : WIN OU LOSE?")
-	#await play(ctx,'./Sounds/piece.mp3')
 	embed = discord.Embed(title = "LE PARI COMMENCE", description = "WIN OU LOSE?", colour = discord.Colour(0xE5E242))
 	embed.set_author(name = ctx.author.name, icon_url = ctx.author.avatar_url)
-	graph = await ctx.send(embed = embed)
-	print("ok")
+	graph = await ctx.send(embed = embed) #Mettre un argument pour le titre en plus
 
 	def check(message):
 		return message.channel == ctx.message.channel and (message.content[0:4] == "win " or message.content[0:5] == "lose ") #Améliorer les checks avec fonctions de message
@@ -202,9 +184,9 @@ async def pari(ctx):
 	while (time.time() - temps) <= 60:
 		try:
 			part = await bot.wait_for('message', timeout = 10, check = check)
-			#await bot.add_reaction(part, "greenCheckmark:558322116685070378")
 			#checkM = bot.get_emoji(558322116685070378)
-			await ctx.send('👍')
+			await part.add_reaction('👍')
+			
 			auteur = str(part.author)
 			Coherence = True
 			if auteur in df["User"].tolist():
@@ -213,7 +195,7 @@ async def pari(ctx):
 
 				for m in msg :
 					if m.isnumeric():
-						montant = int(m)
+						montant = int(m) #Améliorer syntaxe avec rsplit
 
 				if montant < 0 :
 					await ctx.send("Il est où le prix ?")
@@ -221,7 +203,6 @@ async def pari(ctx):
 				else:
 					print(auteur)
 					moneyUser = df.loc[df['User'] == auteur, ['Money']]
-					print(str(moneyUser))
 					moneyUser = moneyUser['Money'].iloc[0]
 					print(moneyUser)
 
@@ -234,23 +215,25 @@ async def pari(ctx):
 							montant = int(moneyUser)
 							await ctx.send("T'avais pas assez d'argent, mais t'en fais pas on a fait un all-in de " + str(montant) + " StratCoins")
 
-						if detect_players(players, auteur) :
-							for tab in players :
-								if auteur == tab[0] :
-									ind = players.index(tab)
+						ind = detect_players(players, auteur)
 
-									if msg[0] == tab[2] :
-										montplus = tab[3]
-										montplus = int(montplus) + montant
-										ctx.send(f"{auteur} va remettre {montant} StratCoins !")
-										embed.to_dict()['fields'][ind]['value'] = "" + msg[0].upper() + " : " + str(montplus) + " StratCoins"
-									else :
-										Coherence = False
+						if ind != -1 :
+
+							print(ind)
+
+							if msg[0] == players[ind]['choice'] :
+								montplus = players[ind]['montant']
+								montplus = int(montplus) + montant
+								await ctx.send(f"{players[ind]['name']} va remettre {montant} StratCoins !")
+								embed.to_dict()['fields'][ind]['value'] = "" + msg[0].upper() + " : " + str(montplus) + " StratCoins"
+							else :
+								Coherence = False
 
 						else :
-							players.append([auteur, str(part.author.name), msg[0], str(montant)])
+							players.append({'pseudo' : auteur, 'name' : str(part.author.name), 'choice' : msg[0], 'montant' : str(montant)})
 							embed.add_field(name = str(part.author.name), value = "" + msg[0].upper() + " : " + str(montant) + " StratCoins", inline = True)
 							await ctx.send("Pari enregistré")
+							#await part.add_reaction('👍')
 
 						if Coherence :
 
@@ -281,11 +264,15 @@ async def pari(ctx):
 
 	if len(players) == 0:
 		await ctx.send("Aucun pari n'a été enregistré...")
+		players = []
+		pariB = False
 		return
 
 	elif len(players) == 1:
-		if players[0][0] == str(auteurInit):
+		if players[0]['pseudo'] == str(auteurInit):
 			await ctx.send("ON NE FAIT PAS D'ARNAQUE ICI !!!")
+			players = []
+			pariB = False
 			return
 
 
@@ -298,26 +285,28 @@ async def pari(ctx):
 
 	#await ctx.send("FIN")
 
+	print("numero1")
+
 	result = part2.content
 	if result == "win":
 		coteT = coteW
 	elif result == "lose" :
 		coteT = coteL
-	winners = []
 	df = pd.read_csv('bank.csv')
+
+	print("numero2")
 
 	embedEnd = discord.Embed(title = "LES RESULTATS", description = "VOICI LES GAGNANTS :", colour = discord.Colour(0xE5E242))
 
 	for i in range(len(players)):
-		if(players[i][2] == result):
+		if(players[i]['choice'] == result):
 			print("oui")
-			winners.append(players[i][1])
-			won = players[i][3]
+			won = players[i]['montant']
 			won = int(won) * coteT
 			won = int(won)
 			print(won)
-			df = data_add(df, players[i][0], won)
-			embedEnd.add_field(name = players[i][1], value = "+" + str(won) + " StratCoins", inline = True)
+			df = data_add(df, players[i]['pseudo'], won)
+			embedEnd.add_field(name = players[i]['name'], value = "+" + str(won) + " StratCoins", inline = True)
 
 
 	df.to_csv('bank.csv', index=False)
