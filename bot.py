@@ -7,6 +7,7 @@ import time
 
 import os
 from dotenv import load_dotenv
+from pymongo import MongoClient
 
 load_dotenv("token.env")
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -14,14 +15,20 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = 'Strat'
 #df = pd.read_csv('bank.csv')
 
+MDP = os.getenv('MDP')
+
+client = MongoClient(MDP)
+db = client.test
+bank = db["bank"]
+
 description = '''StratBank'''
 bot = commands.Bot(command_prefix='?', description=description)
 #bot = discord.Client()
 
-players = [] #Trouver un moyen plus simple de stocker les joueurs (dans un dico)
+players = [] #Liste de dicos
 pariB = False
 
-def data_add(data, name, number):
+def data_add(data, name, number): #Ancienne focntion
 	data.loc[data['User'] == name, ['Money']] = data.loc[data['User'] == name, ['Money']] + number
 	return data
 
@@ -33,10 +40,6 @@ def detect_players(tabs, name):
 			return tabs.index(tab)
 
 	return -1
-
-##############
-#Fonction give, distribution
-##############
 
 @bot.event
 async def on_ready():
@@ -91,27 +94,67 @@ async def giveAccount(ctx, member: discord.Member, *mont):
 	auteur = str(ctx.author)
 	montant = int(mont[0])
 	membre = str(member)
-	df = pd.read_csv('bank.csv')
+	#df = pd.read_csv('bank.csv')
 	if auteur == "TLG#5803" :
-		if membre in df["User"].tolist():
-			df = data_add(df, membre, montant)
-			df.to_csv('bank.csv', index=False)
+		compte = bank.find_one({"User":membre})
+		if compte != None:
+			#df = data_add(df, membre, montant)
+			#df.to_csv('bank.csv', index=False)
+			ajout = compte["Money"] + montant
+			bank.update_one({"User": membre}, {"$set":{"Money": ajout}})
 			await ctx.send("Argent distribué")
 		else:
 			await ctx.send("Pas de compte à ce nom !")
 	else:
 		await ctx.send("Vous n'êtes pas banquier !")
 
+@bot.command(name='send', help='Pour donner de l\'argent à quelqu\'un')
+async def sendAccount(ctx, member: discord.Member, *mont):
+	auteur = str(ctx.author)
+	montant = int(mont[0])
+	membre = str(member)
+	#df = pd.read_csv('bank.csv')
+
+	if montant < 0 :
+		await ctx.send("Le vol est interdit ici !")
+		return
+
+	if auteur == membre :
+		await ctx.send("Tu peux pas envoyer de l'argent à toi-même !")
+		return
+
+	compteA = bank.find_one({"User":auteur})
+	compteM = bank.find_one({"User":membre})
+
+	if compteA != None and compteM != None:
+		#filtre = df[df["User"] == auteur]
+		#argent = filtre["Money"].tolist()
+		if int(compteA["Money"]) < montant :
+			montant = int(compteA["Money"])
+			await ctx.send("Tu donnes de l'argent à un mec et maintenant t'es ruiné !")
+		#df = data_add(df, auteur, -montant)
+		#df = data_add(df, membre, montant)
+		#df.to_csv('bank.csv', index=False)
+		retrait = compteA["Money"] - montant
+		ajout = compteM["Money"] + montant
+		bank.update_one({"User": auteur}, {"$set":{"Money": retrait}})
+		bank.update_one({"User": membre}, {"$set":{"Money": ajout}})
+		await ctx.send(f"Argent envoyé de {auteur} à {membre}")
+	else:
+		await ctx.send("Pas de compte à ce nom !")
+
 @bot.command(name='see', help='Pour voir ton compte')
 async def seeAccount(ctx):
 	auteur = str(ctx.author)
-	df = pd.read_csv('bank.csv')
-	if auteur in df["User"].tolist():
-		filtre = df[df["User"] == auteur]
-		argent = filtre["Money"].tolist()
+	#df = pd.read_csv('bank.csv')
+	global bank
+	compte = bank.find_one({"User":auteur})
+	if compte != None:
+		#filtre = df[df["User"] == auteur]
+		#argent = filtre["Money"].tolist()
 		embed = discord.Embed(title = "BANQUE DE :", description = str(ctx.author.name), colour = discord.Colour(0xE5E242))
 		embed.set_thumbnail(url= ctx.author.avatar_url)
-		embed.add_field(name = "StratCoins :", value = str(argent[0]), inline = True)
+		embed.add_field(name = "StratCoins :", value = str(compte["Money"]), inline = True)
 		await ctx.send(embed = embed)
 	else:
 		await ctx.send("T'as pas de compte !")
@@ -120,16 +163,21 @@ async def seeAccount(ctx):
 async def claimAccount(ctx):
 	auteur = str(ctx.author)
 	day = datetime.datetime.now()
-	df = pd.read_csv('bank.csv')
+	#df = pd.read_csv('bank.csv')
 	global pariB
-	if auteur in df["User"].tolist():
+	global bank
+	compte = bank.find_one({"User":auteur})
+	if compte != None :
 		if pariB != True :
-			filtre = df[df["User"] == auteur]
-			past = filtre["Date"].tolist()
-			if past[0] != str(day.date()) :
-				df = data_add(df, auteur, 500)
-				df.loc[df['User'] == auteur, ['Date']] = str(day.date())
-				df.to_csv('bank.csv', index=False)
+			#filtre = df[df["User"] == auteur]
+			#past = filtre["Date"].tolist()
+			if compte["Date"] != str(day.date()) :
+				#df = data_add(df, auteur, 500)
+				#df.loc[df['User'] == auteur, ['Date']] = str(day.date())
+				#df.to_csv('bank.csv', index=False)
+				ajout = compte["Money"] + 500
+				bank.update_one({"User": auteur}, {"$set":{"Money": ajout}})
+				bank.update_one({"User": auteur}, {"$set":{"Date": str(day.date())}})
 				await ctx.send("Tu as gagné 500 StratCoins")
 			else :
 				await ctx.send("T'as déjà eu assez d'argent pour aujourd'hui...")
@@ -140,15 +188,23 @@ async def claimAccount(ctx):
 
 @bot.command(name='create', help='Pour te créer un compte StratBank')
 async def createAccount(ctx):
-	df = pd.read_csv('bank.csv')
+	#df = pd.read_csv('bank.csv')
 	auteur = str(ctx.author)
 	global pariB
-	if not auteur in df["User"].tolist() :
+	global bank
+	if bank.find_one({"User":auteur}) == None :
 		if pariB != True :
 			day = datetime.datetime.now()
-			df2 = pd.DataFrame({"User": [auteur],"Money":[1000], "Date" : str(day.date())})
-			tot = pd.concat([df, df2], ignore_index=True)
-			tot.to_csv('bank.csv', index=False)
+			#df2 = pd.DataFrame({"User": [auteur],"Money":[1000], "Date" : str(day.date())})
+			#tot = pd.concat([df, df2], ignore_index=True)
+			#tot.to_csv('bank.csv', index=False)
+			bank.insert_one(
+				{
+				"User" : auteur,
+				"Money" : 1500,
+				"Date" : str(day.date()),
+				}
+			)
 			await ctx.send("Compte créé")
 		else :
 			await ctx.send("Attendez la fin du pari pour créer un compte")
@@ -159,7 +215,8 @@ async def createAccount(ctx):
 async def pari(ctx):
 	global players
 	global pariB
-	df = pd.read_csv('bank.csv')
+	global bank
+	#df = pd.read_csv('bank.csv')
 	auteurInit = ctx.author
 	winDol = 0
 	loseDol = 0
@@ -189,7 +246,8 @@ async def pari(ctx):
 			
 			auteur = str(part.author)
 			Coherence = True
-			if auteur in df["User"].tolist():
+			compte = bank.find_one({"User":auteur})
+			if compte != None:
 				msg = part.content.split(" ")
 				montant = -1
 
@@ -202,8 +260,9 @@ async def pari(ctx):
 
 				else:
 					print(auteur)
-					moneyUser = df.loc[df['User'] == auteur, ['Money']]
-					moneyUser = moneyUser['Money'].iloc[0]
+					#moneyUser = df.loc[df['User'] == auteur, ['Money']]
+					#moneyUser = moneyUser['Money'].iloc[0]
+					moneyUser = compte["Money"]
 					print(moneyUser)
 
 					if(int(moneyUser) <= 0):
@@ -224,6 +283,7 @@ async def pari(ctx):
 							if msg[0] == players[ind]['choice'] :
 								montplus = players[ind]['montant']
 								montplus = int(montplus) + montant
+								players[ind]['montant'] = montplus
 								await ctx.send(f"{players[ind]['name']} va remettre {montant} StratCoins !")
 								embed.to_dict()['fields'][ind]['value'] = "" + msg[0].upper() + " : " + str(montplus) + " StratCoins"
 							else :
@@ -237,8 +297,10 @@ async def pari(ctx):
 
 						if Coherence :
 
-							df = data_add(df, auteur, -(montant))
-							df.to_csv('bank.csv', index=False)
+							#df = data_add(df, auteur, -(montant))
+							#df.to_csv('bank.csv', index=False)
+							retrait = compte["Money"] - montant
+							bank.update_one({"User": auteur}, {"$set":{"Money": retrait}})
 							print(players)
 
 							print(str(montant)) #Pourcentage de chance que l’événement se produise : (1/Cote) x 100
@@ -285,16 +347,16 @@ async def pari(ctx):
 
 	#await ctx.send("FIN")
 
-	print("numero1")
+	#print("numero1")
 
 	result = part2.content
 	if result == "win":
 		coteT = coteW
 	elif result == "lose" :
 		coteT = coteL
-	df = pd.read_csv('bank.csv')
+	#df = pd.read_csv('bank.csv')
 
-	print("numero2")
+	#print("numero2")
 
 	embedEnd = discord.Embed(title = "LES RESULTATS", description = "VOICI LES GAGNANTS :", colour = discord.Colour(0xE5E242))
 
@@ -305,11 +367,13 @@ async def pari(ctx):
 			won = int(won) * coteT
 			won = int(won)
 			print(won)
-			df = data_add(df, players[i]['pseudo'], won)
+			#df = data_add(df, players[i]['pseudo'], won)
+			ajout = compte["Money"] + won
+			bank.update_one({"User": players[i]['pseudo']}, {"$set":{"Money": ajout}})
 			embedEnd.add_field(name = players[i]['name'], value = "+" + str(won) + " StratCoins", inline = True)
 
 
-	df.to_csv('bank.csv', index=False)
+	#df.to_csv('bank.csv', index=False)
 	players = []
 	pariB = False
 
